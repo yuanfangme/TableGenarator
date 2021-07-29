@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<div id="tableGenerator">
+    <button @click="toHtml">获取html</button>
+    行:<input id="rows" type="text" v-model="row" maxlength="2">
+    列:<input id="cols" type="text" v-model="col" maxlength="2">
+    <button @click="initTable">生成</button>
+    <button @click="addCol">加一列</button>
+    <button @click="addRow">加一行</button>
+    <br> <br>
+    <button @click="mergeCell">合并单元格</button>
+    <br> <br>
+
+    <div id="_tableWrapper" @mousedown="clearSelectCell">
+        <table>
+            <thead>
+            <tr>
+                <th v-for="col of tableConfig.col">11</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="row of tableCells">
+                <td v-for="cell of row"
+                    @mousedown="mousedown(cell.index[0],cell.index[1],$event)"
+                    @mousemove="mousemove(cell)"
+                    @mouseup="mouseup(cell.mergeIndex[0],cell.mergeIndex[1])"
+                    :class="{'_selected':checkSelected([cell.index[0],cell.index[1]])}"
+                    v-show="!cell.remove"
+                    :rowspan="cell.rowspan"
+                    :colspan="cell.colspan"
+                >
+                    {{cell.index[0] + ',' + cell.index[1]}}
+                </td>
+
+            </tr>
+
+            </tbody>
+
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
+<script src="./js/vue.min.js"></script>
+<script type="text/javascript">
+    var vm = new Vue({
+        el: '#tableGenerator',
+        data: {
+            row: 5,
+            col: 8,
+            tableConfig: {
+                row: 5,
+                col: 8
+            },
+            tableCells: [
+                //tr
+                [
+                    //td
+                    {
+                        index: [1, 1],
+                        mergeIndex:[1,1],
+                        value: "",
+                        colspan: 1,
+                        rowspan: 1,
+                        remove:false
+                    }
+                ]
+            ],
+            isMouseDown: false,
+            mouseDownCell: null,
+            isDraggedBetweenCells: false,
+            selectCellsArr: []
+        },
+        mounted() {
+            // // this.tableCells=
+            console.log(this.tableConfig)
+            let temp = []
+            for (let i = 1; i <= this.tableConfig.row; i++) {
+                let row = []
+                for (let j = 1; j <= this.tableConfig.col; j++) {
+
+                    row.push(
+                        {
+                            index: [i, j],
+                            mergeIndex:[i,j],
+                            key: i + "," + j,
+                            colspan: 1,
+                            rowspan: 1
+                        }
+                    )
+                }
+                temp.push(row)
+            }
+            this.tableCells = temp
+            console.log(temp)
+        },
+        methods: {
+            initTable() {
+                this.tableConfig.row = Number(this.row)
+                this.tableConfig.col = Number(this.col)
+            },
+            addCol() {
+                this.tableConfig.col += 1
+            },
+            addRow() {
+                this.tableConfig.row += 1
+            },
+            toHtml() {
+                // console.log(this)
+
+                console.log(document.getElementById("_tableWrapper").innerHTML)
+            },
+            mousedown(row, col, e) {
+                // console.log("mousedown",row,col,e)
+                this.isMouseDown = true
+                this.mouseDownCell = [row, col]
+            },
+            mousemove(cell) {
+
+                // console.log(cell)
+                if (this.isMouseDown && this.mouseDownCell !== [cell.mergeIndex[0], cell.mergeIndex[1]]) {
+                    // console.log("mousemove",row,col)
+                    this.isDraggedBetweenCells = true
+                    this.removeDragCell()
+                    this.selectCells(this.mouseDownCell, [cell.mergeIndex[0], cell.mergeIndex[1]])
+
+                }
+            },
+            mouseup(row, col) {
+                // console.log("mouseup",row,col)
+                if (this.isMouseDown) {
+                    this.isMouseDown = false
+                    this.mouseDownCell = null
+                    this.isDraggedBetweenCells = false
+
+                    console.log(this.selectCellsArr.join("    "))
+                }
+            },
+            removeDragCell() {
+
+            },
+            selectCells(beginCell, endCell) {
+                // console.log(beginCell,endCell)
+
+                window.getSelection().removeAllRanges()
+
+                if (beginCell[0] - endCell[0] > 0 || beginCell[1] - endCell[1] > 0) {
+                    let t = beginCell
+                    beginCell = endCell
+                    endCell = t
+                }
+                // console.log(beginCell,endCell)
+
+                let rs = endCell[0] - beginCell[0]
+                let cs = endCell[1] - beginCell[1]
+                let selectCell = []
+                for (let i = 0; i <= rs; i++) {
+                    for (let j = 0; j <= cs; j++) {
+                        // console.log(beginCell[0]+i,beginCell[1]+j)
+                        selectCell.push([beginCell[0] + i, beginCell[1] + j])
+                    }
+                }
+                // console.log(selectCell)
+
+                this.selectCellsArr = selectCell
+            },
+            clearSelectCell() {
+                console.log(1)
+                this.selectCellsArr = []
+            },
+            checkSelected(cell) {
+                return this.selectCellsArr.find(c => c[0] === cell[0] && c[1] === cell[1])
+            },
+            mergeCell() {
+                // this.selectCellsArr.sort(a,b=> {
+                //     let as=a[0] + a[1],bs =b[0] + b[1]
+                //     return as-bs>1?1:0
+                // })
+                // console.log( this.selectCellsArr)
+                if (!this.selectCellsArr || this.selectCellsArr.length < 2)
+                    return
+                let leftTopCell = this.selectCellsArr[0]
+                let rightBtmCell = this.selectCellsArr[this.selectCellsArr.length - 1]
+                let mergeCellTo
+                let mergeCellIndex
+                for (let row of this.tableCells) {
+                    for (let cell of row) {
+                        if(cell.key===leftTopCell[0]+','+leftTopCell[1]){
+                            mergeCellTo=cell
+                            mergeCellTo.colspan=rightBtmCell[1]-leftTopCell[1]+1
+                            mergeCellTo.rowspan=rightBtmCell[0]-leftTopCell[0]+1
+
+                            console.log(  mergeCellTo.mergeIndex)
+                        }else{
+                            if(cell.key===rightBtmCell[0]+','+rightBtmCell[1]){
+                                mergeCellIndex=cell.mergeIndex
+                            }
+                            if(this.checkSelected(cell.index)){
+                                cell.remove=true
+                            }
+                        }
+                    }
+                    if(mergeCellIndex){
+                        mergeCellTo.mergeIndex=mergeCellIndex
+                    }
+                }
+
+            }
+        }
+    })
+</script>
+<style>
+    table {
+        border-collapse: collapse;
+    }
+
+    td, th {
+        border: 1px solid #666;
+        min-width: 100px;
+        /*min-height: 60px;*/
+        /*display: block;*/
+        padding: 20px 10px;
+    }
+
+    ._selected {
+        background-color: #d0eaf9;
+    }
+</style>
