@@ -1,93 +1,462 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <meta http-equiv="content-language" content="zh">
-    <title>表格生成器</title>
-    <style type="text/css">
-        table, td ,th{
-            border: solid 1px black;
-        }
-        table>thead>tr>th{
-            font-weight: bolder;
-            background: #dedede;
-        }
-
-        table {
-            border-collapse: collapse;
-            border-spacing: 0;
-        }
-
-        td, th{
-            padding: 8px;
-        }
-
-        .s {
-            background: #d0eaf9;
-        }
-
-        #rows, #cols {
-            width: 20px;
-        }
-
-        td div,th div {
-            outline: none;
-        }
-
-        #tableWrap {
-            padding: 10px;
-        }
-
-        input[type="button"] {
-            width: 110px;
-        }
-        i.annotation{
-            color: gray;
-            font-size: 10px;
-        }
-    </style>
-    <script src="./js/jquery-1.7.1.min.js"></script>
-    <script src="./js/main.js" type="text/javascript"></script>
+    <meta charset="UTF-8">
+    <title>Title</title>
 </head>
 <body>
-<div>
-    <h1>表格生成器 v1.2</h1>
-    <p>功能介绍:</p>
-    <ul>
-        <li>自定义列数和行数</li>
-        <li>可合并单元格</li>
-        <li>动态添加单列或单行</li>
-        <li>可选表头</li>
-        <li>可填写数据</li>
-    </ul>
+<div id="tableGenerator">
+    <button @click="toHtml">获取html</button>
+    行:<input id="rows" type="text" v-model="row" maxlength="2">
+    列:<input id="cols" type="text" v-model="col" maxlength="2">
+    <button @click="initTable">生成</button>
+    <button @click="addCol">加一列</button>
+    <button @click="addRow">加一行</button>
+    <br> <br>
+    <button @click="mergeCell">合并单元格</button>
+    <br> <br>
 
-    <input type="button" id="generate" value="生成">
-    行:<input id="rows" type="text" value="5" maxlength="2">
-    列:<input id="cols" type="text" value="10" maxlength="2">
-    <br>
-    <input type="button" id="merge" value="合并单元格"> <i class="annotation">说明：选中几个单元格后，点此按钮可进行合并</i>
-    <input type="button" id="addRow" value="添加一行">
-    <input type="button" id="addCol" value="添加一列">
-    <input type="button" id="delRow" value="删除一行">
-    <input type="button" id="delCol" value="删除一列">
+    <div id="_tableWrapper" @mousedown="clearSelectCell">
+        <table>
+            <thead v-show="tableConfig.showTHead">
+            <tr>
+                <th v-for="col of tableConfig.col"
+                    :style="[tableConfig.tableStyle.th.getStyle(),tableConfig.tableStyle.th.getCodeStyle()]"
+                >
+                    <div contenteditable="true" class="editTd"></div>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="(row,index) of tableCells" :key="index">
+                <td v-for="cell of row"
+                    :key="cell.key"
+                    @mousedown="mousedown(cell,$event)"
+                    @mousemove="mousemove(cell)"
+                    @mouseup="mouseup(cell)"
+                    :class="{'_selected':checkSelected(cell.index),'_active':activeCell&&activeCell.key===cell.key}"
+                    v-show="!cell.remove"
+                    :rowspan="cell.rowspan"
+                    :colspan="cell.colspan"
+                    :style="[cell.style.getStyle(),cell.style.getCodeStyle()]"
+                >
+<!--                    <div contenteditable="true" class="editTd"> {{cell.index[0] + ',' + cell.index[1]}}</div>-->
+                                        <div contenteditable="true" class="editTd"> {{cell.text}}</div>
 
+                </td>
+
+            </tr>
+
+            </tbody>
+
+        </table>
+    </div>
+
+    <div id="setting">
+        <div v-if="activeCell">
+
+            <div> index:{{activeCell.index}}</div>
+            <!--            <div class="styleDef">单元格：{{activeCell.index}}</div>-->
+            <div class="styleItem" v-for="(value,name) in activeCell.style">
+                <!--                v-if="name!=='definedByCode'"-->
+                <template v-if="name==='_definedByCode'">
+                    {{name}} :<textarea type="text" v-model="activeCell.style[name]"></textarea>
+                </template>
+                <template v-else-if="!name.startsWith('_')">
+                    {{name}} :<input type="text" v-model="activeCell.style[name]"/>
+                </template>
+            </div>
+
+            text:<textarea type="text" v-model="activeCell.text"></textarea>
+
+        </div>
+
+
+        <div v-for="(conf,type) in tableConfig.tableStyle">
+
+            <div class="styleDef">{{type}}
+                <input type="checkbox" v-model="tableConfig.showTHead" v-if="type==='th'">
+            </div>
+
+            <div class="styleItem" v-for="(value,name) in conf">
+                <template v-if="name==='_definedByCode'">
+                    {{name}} :<textarea type="text" v-model="tableConfig.tableStyle[type][name]"></textarea>
+                </template>
+                <template v-else-if="!name.startsWith('_')">
+                    {{name}} :<input type="text" v-model="tableConfig.tableStyle[type][name]"/>
+                </template>
+            </div>
+        </div>
+
+        <div class="styleItem">
+            <button @click="setStyle">应用</button>
+        </div>
+    </div>
 </div>
-
-<hr>
-
-<div>
-    <div id="tableWrap"></div>
-    <hr>
-
-    <label><input type="checkbox" id="bsEnter"/>清除回车与空格</label>
-    <label><input type="checkbox" id="clearTh"/>清除表头th</label>
-    <hr>
-
-    <textarea cols="60" rows="30" id="export"></textarea>
-    <hr>
-
-</div>
-
 
 </body>
 </html>
+<script src="./js/vue.min.js"></script>
+<script type="text/javascript">
+    class CellStyle {
+        constructor(width, height, padding, fontSize, textAlign, background) {
+            this.width = width || '100px'
+            this.height = height || 'auto'
+            this.padding = padding || '20px 10px'
+            this.fontSize = fontSize || '16px'
+            this.textAlign = textAlign || 'center'
+            this.background = background || '#fff'
+            this._defaultStyleStr = ''
+            this._definedByCode = ""
+            this._definedByCodeFormat = null
+        }
+
+        getStyle() {
+            return this
+        }
+
+        getCodeStyle() {
+
+            if (!this._definedByCode || !this._definedByCode.endsWith(';'))
+                return {}
+
+            let st = ""
+            let split = this._definedByCode.split(';');
+            console.log(split)
+            for (const sp of split) {
+                if (!sp)
+                    continue
+                let kv = sp.split(':');
+                if (kv)
+                    st = st + '"' + kv[0].trim() + '":"' + kv[1].trim() + '",'
+            }
+
+            if (st.endsWith(','))
+                st = st.substring(0, st.length - 1)
+            console.log(st)
+            let parse = JSON.parse('{' + st + '}');
+            console.log(parse)
+            this._definedByCodeFormat = parse
+            return parse
+        }
+
+    }
+
+    var vm = new Vue({
+        el: '#tableGenerator',
+        data: {
+            row: 5,
+            col: 8,
+            tableConfig: {
+                row: 5,
+                col: 8,
+                showTHead: true,
+                tableStyle: {
+                    th: new CellStyle('', '', null, '20px', 'center', '#EEE'),
+                    td: new CellStyle('', '', null, '20px', 'center', '')
+                }
+            },
+
+            theadCells: [],
+            tableCells: [
+                //tr
+                [
+                    //td
+                    {
+                        index: [1, 1],
+                        x: 1,
+                        y: 1,
+                        mergeIndex: [1, 1],
+                        merge: {
+                            x: null,
+                            y: null,
+                            index: null,
+                            ref: null
+                        },
+                        value: "",
+                        colspan: 1,
+                        rowspan: 1,
+                        remove: false,
+                        style: new CellStyle()
+                    }
+                ]
+            ],
+            isMouseDown: false,
+            mouseDownCell: null,
+            activeCell: null,
+            isDraggedBetweenCells: false,
+            selectCellsArr: []
+        },
+        mounted() {
+
+            this.setStyle()
+
+            console.log(this.tableConfig)
+            let temp = []
+            for (let x = 1; x <= this.tableConfig.row; x++) {
+                let row = []
+                for (let y = 1; y <= this.tableConfig.col; y++) {
+                    row.push(this.getCellTemplate(x, y))
+                }
+                temp.push(row)
+            }
+            this.tableCells = temp
+            console.log(temp)
+
+        },
+        methods: {
+            initTable() {
+                this.tableConfig.row = Number(this.row)
+                this.tableConfig.col = Number(this.col)
+            },
+            addCol() {
+                this.tableConfig.col += 1
+
+                let y = this.tableConfig.col
+                for (let x = 1; x <= this.tableCells.length; x++) {
+                    this.tableCells[x - 1].push(this.getCellTemplate(x, y))
+                }
+
+            },
+            addRow() {
+                this.tableConfig.row += 1
+
+                let row = []
+                let x = this.tableConfig.row
+                for (let y = 1; y <= this.tableConfig.col; y++) {
+                    row.push(this.getCellTemplate(x, y))
+                }
+
+                this.tableCells.push(row)
+
+            },
+            getCellTemplate(x, y) {
+                return {
+                    index: [x, y],
+                    x: x,
+                    y: y,
+                    merge: {
+                        flag: false,
+                        x: x,
+                        y: y,
+                        index: [x, y],
+                        ref: null
+                    },
+                    text: '',
+                    key: x + "," + y,
+                    colspan: 1,
+                    rowspan: 1,
+                    style: new CellStyle()
+                }
+            },
+            toHtml() {
+
+                console.log(document.getElementById("_tableWrapper").innerHTML)
+                //TODO 抽取公共样式到class
+            },
+            setStyle() {
+
+                console.log(this.tableConfig.tableStyle.td)
+
+                for (let row of this.tableCells) {
+                    for (let td of row) {
+                        let keys = Object.keys(td.style);
+                        for (const key of keys) {
+                            if (key === '_definedByCode' || !key.startsWith('_')) {
+                                let code = this.tableConfig.tableStyle.td[key]
+                                if (code) {
+                                    td.style[key] = code
+                                }
+                            }
+                        }
+                    }
+                }
+
+            },
+            mousedown(cell, e) {
+                // console.log("mousedown",row,col,e)
+                this.isMouseDown = true
+                this.mouseDownCell = cell
+                this.activeCell = cell
+            },
+            mousemove(cell) {
+
+                if (this.isMouseDown && (this.mouseDownCell.x !== cell.merge.x || this.mouseDownCell.y !== cell.merge.y)) {
+                    // console.log(cell.merge.index, this.mouseDownCell)
+                    this.isDraggedBetweenCells = true
+                    this.removeDragCell()
+                    this.selectCells(this.mouseDownCell, cell)
+
+                }
+            },
+            mouseup(cell) {
+                // console.log("mouseup",row,col)
+                if (this.isMouseDown) {
+                    this.isMouseDown = false
+                    this.mouseDownCell = null
+                    this.isDraggedBetweenCells = false
+
+                    // console.log(this.selectCellsArr.join("    "))
+                }
+            },
+            removeDragCell() {
+
+            },
+            selectCells(beginCell, endCell) {
+                // console.log(beginCell.index, endCell.index)
+
+                //还有一个bug
+
+                window.getSelection().removeAllRanges()
+
+                //构造选区矩阵
+                let maxY = Math.max(beginCell.y, endCell.y)
+                let maxX = Math.max(beginCell.x, endCell.x)
+                let minX = Math.min(beginCell.x, endCell.x)
+                let minY = Math.min(beginCell.y, endCell.y)
+
+                //选区内直接途经的单元格
+                let selectCell = this.getCellOfRange(minX, minY, maxX, maxY)
+
+                // console.log(selectCell)
+
+                //选区内直接途经的单元格 => 单元格被合并的，找出被合并到的单元格
+                let xarr = []
+                let yarr = []
+                for (let cell of selectCell) {
+                    let c = this.getCell(cell[0], cell[1]);
+
+                    // console.log(c)
+                    if (c.merge.ref) {
+                        //合并单元格的起始坐标
+                        // console.log(c)
+                        xarr.push(c.merge.ref.x)
+                        yarr.push(c.merge.ref.y)
+                        xarr.push(c.merge.ref.merge.x)
+                        yarr.push(c.merge.ref.merge.y)
+                    }
+                }
+                //求得单元格坐标的最大范围
+                xarr.push(beginCell.x)
+                xarr.push(endCell.x)
+                yarr.push(beginCell.y)
+                yarr.push(endCell.y)
+                xarr.sort((a, b) => a - b)
+                yarr.sort((a, b) => a - b)
+                // console.log(xarr[0], yarr[0], xarr[xarr.length - 1], yarr[yarr.length - 1])
+
+                selectCell = this.getCellOfRange(xarr[0], yarr[0], xarr[xarr.length - 1], yarr[yarr.length - 1])
+
+                // console.log(selectCell)
+
+                this.selectCellsArr = selectCell
+            },
+            getCellOfRange(minX, minY, maxX, maxY) {
+
+                // console.log(minX, minY, "-", maxX, maxY)
+
+                let rs = maxX - minX
+                let cs = maxY - minY
+
+                let selectCell = []
+                for (let i = 0; i <= rs; i++) {
+                    for (let j = 0; j <= cs; j++) {
+                        // console.log(beginCell[0]+i,beginCell[1]+j)
+                        selectCell.push([minX + i, minY + j])
+                    }
+                }
+                return selectCell
+            },
+            getCell(x, y) {
+                // console.log(x,y)
+                let f
+                for (const tableCell of this.tableCells) {
+                    // console.log(tableCell)
+                    f = tableCell.find(c => c.x === x && c.y === y)
+                    // console.log(f)
+                    if (f)
+                        return f
+                }
+
+            },
+            clearSelectCell() {
+                // this.activeCell = null
+                this.selectCellsArr = []
+            },
+            checkSelected(cell) {
+                return this.selectCellsArr.find(c => c[0] === cell[0] && c[1] === cell[1])
+            },
+            mergeCell() {
+
+                if (!this.selectCellsArr || this.selectCellsArr.length < 2)
+                    return
+                //数组已经是排列好的二维矩阵，左上 leftTopCellIndex 为最小值（起点），右下 rightBtmCellIndex 是最大值（终点）
+                let leftTopCellIndex = this.selectCellsArr[0]
+                let rightBtmCellIndex = this.selectCellsArr[this.selectCellsArr.length - 1]
+                let mergeToCell
+                for (let row of this.tableCells) {
+                    for (let cell of row) {
+                        if (cell.key === leftTopCellIndex[0] + ',' + leftTopCellIndex[1]) {
+                            mergeToCell = cell
+                            mergeToCell.colspan = rightBtmCellIndex[1] - leftTopCellIndex[1] + 1
+                            mergeToCell.rowspan = rightBtmCellIndex[0] - leftTopCellIndex[0] + 1
+                            console.log(mergeToCell)
+                        } else {
+                            if (this.checkSelected(cell.index)) {
+                                cell.remove = true
+                                cell.merge.ref = mergeToCell
+                            }
+                            if (cell.key === rightBtmCellIndex[0] + ',' + rightBtmCellIndex[1]) {
+                                mergeToCell.merge = cell.merge
+                            }
+                        }
+                    }
+                }
+
+                this.activeCell = mergeToCell
+            }
+
+        }
+    })
+</script>
+<style>
+    table {
+        border-collapse: collapse;
+    }
+
+    td, th {
+        border: 1px solid #666;
+        min-width: 50px;
+        /*min-height: 60px;*/
+        /*display: block;*/
+        padding: 20px 10px;
+    }
+
+    ._selected {
+        background-color: #d0eaf9 !important;
+    }
+
+    .editTd:focus {
+        outline: none;
+    }
+
+    .styleDef {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #ccc;
+    }
+
+    ._active {
+        position: relative;
+    }
+
+    ._active:before {
+        content: '';
+        width: calc(100% - 4px);
+        position: absolute;
+        height: calc(100% - 4px);
+        left: 0;
+        top: 0;
+        border: 2px solid #0c8dc1 !important;
+    }
+</style>
